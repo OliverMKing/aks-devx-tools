@@ -23,9 +23,9 @@ export default async function runDraftCreateCmdPalette(
 }
 
 export async function multiStepInput(context: ExtensionContext, destination: string) {
-    const resourceGroups: QuickPickItem[] = ['dockerfile-deployment', 'dockerfile', 'deployment']
-		.map(label => ({ label }));
-	const langugaesResources: QuickPickItem[] = ['clojure', 'c#', 'erlang', 'go', 'gomodule', "java", "gradle", "javascript", "php", "python", "rust", "swift"]
+    const title = 'Draft a Dockerfile from source code';
+
+	const languages: QuickPickItem[] = ['clojure', 'c#', 'erlang', 'go', 'gomodule', "java", "gradle", "javascript", "php", "python", "rust", "swift"]
 		.map(label => ({ label }));
     const deploymentTypes: QuickPickItem[] = ['helm', 'kustomize', 'manifests']
 		.map(label => ({ label }));
@@ -34,7 +34,6 @@ export async function multiStepInput(context: ExtensionContext, destination: str
 		title: string;
 		step: number;
 		totalSteps: number;
-		resourceGroup: QuickPickItem | string;
         fileType: QuickPickItem | string;
         language: string;
         portNumber: string;
@@ -45,33 +44,17 @@ export async function multiStepInput(context: ExtensionContext, destination: str
 
 	async function collectInputs() {
 		const state = {} as Partial<State>;
-		await MultiStepInput.run(input => pickResourceGroup(input, state));
+		await MultiStepInput.run(input => selectLanguage(input, state));
 		return state as State;
 	}
 
-    const title = 'Draft Create Command';
-
-	async function pickResourceGroup(input: MultiStepInput, state: Partial<State>) {
-		const pick = await input.showQuickPick({
-			title,
-			step: 1,
-			totalSteps: 5,
-			placeholder: 'Pick a File Creation Type',
-			items: resourceGroups,
-			activeItem: typeof state.fileType !== 'string' ? state.fileType : undefined,
-			shouldResume: shouldResume
-		});
-        state.fileType = pick.label;
-		return (input: MultiStepInput) => pickResourceGroupLanguages(input, state);
-    }
-
-	async function pickResourceGroupLanguages(input: MultiStepInput, state: Partial<State>) {
+	async function selectLanguage(input: MultiStepInput, state: Partial<State>) {
 		const pick = await input.showQuickPick({
 			title,
 			step: 2,
 			totalSteps: 5,
-			placeholder: 'Pick a language',
-			items: langugaesResources,
+			placeholder: 'Select the programming language',
+			items: languages,
 			activeItem: typeof state.language !== 'string' ? state.language : undefined,
 			shouldResume: shouldResume
 		});
@@ -85,12 +68,11 @@ export async function multiStepInput(context: ExtensionContext, destination: str
 			step: 3,
 			totalSteps: 5,
 			value: typeof state.portNumber === 'string' ? state.portNumber : '',
-			prompt: 'Port Number',
-			validate: validateNameIsUnique,
+			prompt: 'Port (e.g.8080)',
+			validate: validatePort,
 			shouldResume: shouldResume
 		});
         return (input: MultiStepInput) => inputApplicationName(input, state);
-		// return (input: MultiStepInput) => inputName(input, state);
 	}
 
 	async function inputApplicationName(input: MultiStepInput, state: Partial<State>) {
@@ -100,22 +82,7 @@ export async function multiStepInput(context: ExtensionContext, destination: str
 			totalSteps: 5,
 			value: typeof state.name === 'string' ? state.name : '',
 			prompt: 'Application Name',
-			validate: validateNameIsUnique,
-			shouldResume: shouldResume
-		});
-		return (input: MultiStepInput) => pickDeploymentType(input, state);
-	}
-
-	async function inputName(input: MultiStepInput, state: Partial<State>) {
-		const additionalSteps = typeof state.resourceGroup === 'string' ? 1 : 0;
-		// TODO: Remember current value when navigating back.
-		state.name = await input.showInputBox({
-			title,
-			step: 3 + additionalSteps,
-			totalSteps: 3 + additionalSteps,
-			value: state.name || '',
-			prompt: 'Choose a unique name for the Application Service',
-			validate: validateNameIsUnique,
+			validate: validatePort,
 			shouldResume: shouldResume
 		});
 		return (input: MultiStepInput) => pickDeploymentType(input, state);
@@ -135,23 +102,24 @@ export async function multiStepInput(context: ExtensionContext, destination: str
 	}
 
 	function shouldResume() {
-		// Could show a notification with the option to resume.
 		return new Promise<boolean>((resolve, reject) => {
 			// noop
 		});
 	}
 
-	async function validateNameIsUnique(name: string) {
-		// ...validate...
-		await new Promise(resolve => setTimeout(resolve, 1000));
-		return name === 'vscode' ? 'Name not unique' : undefined;
-	}
+	async function validatePort(port: string) {
+        // wait before validating so users don't see error messages while typing 
+		await new Promise(resolve => setTimeout(resolve, 500));
 
-	async function getAvailableRuntimes(resourceGroup: QuickPickItem | string, token?: CancellationToken): Promise<QuickPickItem[]> {
-		// ...retrieve...
-		await new Promise(resolve => setTimeout(resolve, 1000));
-		return ['Node 8.9', 'Node 6.11', 'Node 4.5']
-			.map(label => ({ label }));
+        const portNum = parseInt(port);
+        const portMin = 1;
+        const portMax = 65535;
+        const portErr = `Port must be in range ${portMin} to ${portMax}`;
+
+        if (portNum < portMin) return portErr;
+        if (portNum > portMax) return portErr
+
+        return undefined;
 	}
 
 	const state = await collectInputs();
