@@ -7,6 +7,7 @@ import { buildCreateCommand, buildCreateConfig } from './helper/draftCommandBuil
 import { runDraftCommand } from './helper/runDraftHelper';
 import { reporter } from './../../utils/reporter';
 import { MultiStepInput } from './model/stepInput';
+import * as fs from 'fs';
 
 
 export default async function runDraftCreateCmdPalette(
@@ -40,23 +41,54 @@ export async function multiStepInput(context: ExtensionContext, destination: str
 		name: string;
         deploymentType: string;
         outputFile: string;
+        sourceFolder: string;
 		runtime: QuickPickItem;
 	}
 
 	async function collectInputs() {
 		const state = {} as Partial<State>;
-		await MultiStepInput.run(input => inputOutputFile(input, state, 1));
+		await MultiStepInput.run(input => inputSourceCodeFolder(input, state, 1));
 		return state as State;
+	}
+
+    const totalSteps = 5;
+    async function inputSourceCodeFolder(input: MultiStepInput, state: Partial<State>, step: number) {
+		state.sourceFolder = await input.showInputBox({
+			title,
+			step: step,
+			totalSteps: totalSteps,
+			value: typeof state.sourceFolder === 'string' ? state.sourceFolder : '',
+			prompt: 'Folder with your source code e.g. ./src)',
+            validate: async (file: string) => {
+                await new Promise(resolve => setTimeout(resolve, 250));
+                const errMsg = "Input must be an existing directory";
+
+                if (!fs.existsSync(file))
+                    return errMsg;
+
+
+                if (!fs.lstatSync(file).isDirectory())
+                    return errMsg;
+
+                return undefined;
+            },
+			shouldResume: shouldResume
+		});
+        return (input: MultiStepInput) => inputOutputFile(input, state, step + 1);
 	}
 
     async function inputOutputFile(input: MultiStepInput, state: Partial<State>, step: number) {
 		state.outputFile = await input.showInputBox({
 			title,
 			step: step,
-			totalSteps: 5,
+			totalSteps: totalSteps,
 			value: typeof state.outputFile=== 'string' ? state.outputFile: '',
 			prompt: 'Output file destination (e.g. ./Dockerfile)',
-            validate: async () => undefined,
+            validate: async () => {
+                const pathErr = "Destination must be a file path";
+
+                return undefined;
+            },
 			shouldResume: shouldResume
 		});
         return (input: MultiStepInput) => selectLanguage(input, state, step + 1);
@@ -66,7 +98,7 @@ export async function multiStepInput(context: ExtensionContext, destination: str
 		const pick = await input.showQuickPick({
 			title,
 			step: step,
-			totalSteps: 5,
+			totalSteps: totalSteps,
 			placeholder: 'Select the programming language',
 			items: languages,
 			activeItem: typeof state.language !== 'string' ? state.language : undefined,
@@ -80,7 +112,7 @@ export async function multiStepInput(context: ExtensionContext, destination: str
 		state.portNumber = await input.showInputBox({
 			title,
 			step: step,
-			totalSteps: 5,
+			totalSteps: totalSteps,
 			value: typeof state.portNumber === 'string' ? state.portNumber : '',
 			prompt: 'Port (e.g.8080)',
 			validate: validatePort,
@@ -93,26 +125,13 @@ export async function multiStepInput(context: ExtensionContext, destination: str
 		state.name = await input.showInputBox({
 			title,
 			step: step,
-			totalSteps: 5,
+			totalSteps: totalSteps,
 			value: typeof state.name === 'string' ? state.name : '',
 			prompt: 'Application Name',
 			validate: validatePort,
 			shouldResume: shouldResume
 		});
 		return (input: MultiStepInput) => pickDeploymentType(input, state, step + 1);
-	}
-
-    async function pickDeploymentType(input: MultiStepInput, state: Partial<State>, step: number) {
-		const pick = await input.showQuickPick({
-			title,
-			step: step,
-			totalSteps: 5,
-			placeholder: 'Pick a deployment type',
-			items: deploymentTypes,
-			activeItem: typeof state.deploymentType !== 'string' ? state.deploymentType : undefined,
-			shouldResume: shouldResume
-		});
-        state.deploymentType = pick.label;
 	}
 
 	function shouldResume() {
