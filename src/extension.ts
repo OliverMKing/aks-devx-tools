@@ -2,6 +2,7 @@
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 import runDraftCreate from './commands/runDraftTool/runDraftCreate';
+import runDraftCreateCmdPalette from './commands/runDraftTool/runDraftDockerfile';
 import runDraftGenerateWorkflow from './commands/runDraftTool/runDraftGenerateWorkflow';
 import runDraftSetupGH from './commands/runDraftTool/runDraftSetupGH';
 import runDraftUpdate from './commands/runDraftTool/runDraftUpdate';
@@ -20,7 +21,16 @@ export function activate(context: vscode.ExtensionContext) {
 	// The command has been defined in the package.json file
 	// Now provide the implementation of the command with registerCommand
 	// The commandId parameter must match the command field in package.json
+	let disposableCreateDockerfile = vscode.commands.registerCommand('aks-draft-extension.runDraftCreateDockerfile', async (folder) => {
+		if (reporter) {
+			reporter.sendTelemetryEvent("command", { command: 'aks-draft-extension.runDraftCreateDockerfile' });
+		}
 
+		const currentWorkspace = vscode.workspace.workspaceFolders![0];
+		runDraftCreateCmdPalette(context, currentWorkspace.uri.fsPath);
+	});
+
+	/**
 	let disposableCreate = vscode.commands.registerCommand('aks-draft-extension.runDraftCreate', async (folder) => {
 		if (reporter) {
             reporter.sendTelemetryEvent("command", { command: 'aks-draft-extension.runDraftCreate' });
@@ -29,6 +39,9 @@ export function activate(context: vscode.ExtensionContext) {
 		// Display a message box to the user
 		runDraftCreate(context, vscode.Uri.parse(folder).fsPath);
 	});
+	*/
+
+
 	let disposableSetupGH = vscode.commands.registerCommand('aks-draft-extension.runDraftSetupGH', async (folder) => {
 		if (reporter) {
             reporter.sendTelemetryEvent("command", { command: 'aks-draft-extension.runDraftSetupGH' });
@@ -54,7 +67,7 @@ export function activate(context: vscode.ExtensionContext) {
 		runDraftUpdate(context, vscode.Uri.parse(folder).fsPath);
 	});
 
-	context.subscriptions.push(disposableCreate);
+	context.subscriptions.push(disposableCreateDockerfile);
 	context.subscriptions.push(disposableSetupGH);
 	context.subscriptions.push(disposableGenerateWorkflow);
 	context.subscriptions.push(disposableUpdate);
