@@ -38,7 +38,6 @@ export async function multiStepInput(context: ExtensionContext, destination: str
         fileType: QuickPickItem | string;
         language: string;
         portNumber: string;
-		name: string;
         deploymentType: string;
         outputFile: string;
         sourceFolder: string;
@@ -118,21 +117,8 @@ export async function multiStepInput(context: ExtensionContext, destination: str
 			validate: validatePort,
 			shouldResume: shouldResume
 		});
-        return (input: MultiStepInput) => inputApplicationName(input, state, step + 1);
 	}
 
-	async function inputApplicationName(input: MultiStepInput, state: Partial<State>, step: number) {
-		state.name = await input.showInputBox({
-			title,
-			step: step,
-			totalSteps: totalSteps,
-			value: typeof state.name === 'string' ? state.name : '',
-			prompt: 'Application Name',
-			validate: validatePort,
-			shouldResume: shouldResume
-		});
-		return (input: MultiStepInput) => pickDeploymentType(input, state, step + 1);
-	}
 
 	function shouldResume() {
 		return new Promise<boolean>((resolve, reject) => {
@@ -161,7 +147,7 @@ export async function multiStepInput(context: ExtensionContext, destination: str
     const language = state.language;
     const fileType = state.fileType;
     const port = state.portNumber;
-    const appName = state.name;
+    const appName = "";
     const workflow = state.deploymentType;
     const dotnetVersion = "";
 
