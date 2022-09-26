@@ -36,7 +36,7 @@
     "commands": [
       {
         "command": "aks-draft-extension.runDraftCreateDockerfile",
-        "title": "Draft a Dockerfile from source code"
+        "title": "AKS Developer: Draft a Dockerfile from source code"
       },
       {
         "command": "aks-draft-extension.runDraftSetupGH",
