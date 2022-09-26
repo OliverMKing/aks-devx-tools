@@ -39,19 +39,33 @@ export async function multiStepInput(context: ExtensionContext, destination: str
         portNumber: string;
 		name: string;
         deploymentType: string;
+        outputFile: string;
 		runtime: QuickPickItem;
 	}
 
 	async function collectInputs() {
 		const state = {} as Partial<State>;
-		await MultiStepInput.run(input => selectLanguage(input, state));
+		await MultiStepInput.run(input => inputOutputFile(input, state, 1));
 		return state as State;
 	}
 
-	async function selectLanguage(input: MultiStepInput, state: Partial<State>) {
+    async function inputOutputFile(input: MultiStepInput, state: Partial<State>, step: number) {
+		state.outputFile = await input.showInputBox({
+			title,
+			step: step,
+			totalSteps: 5,
+			value: typeof state.outputFile=== 'string' ? state.outputFile: '',
+			prompt: 'Output file destination (e.g. ./Dockerfile)',
+            validate: async () => undefined,
+			shouldResume: shouldResume
+		});
+        return (input: MultiStepInput) => selectLanguage(input, state, step + 1);
+	}
+
+	async function selectLanguage(input: MultiStepInput, state: Partial<State>, step: number) {
 		const pick = await input.showQuickPick({
 			title,
-			step: 2,
+			step: step,
 			totalSteps: 5,
 			placeholder: 'Select the programming language',
 			items: languages,
@@ -59,39 +73,39 @@ export async function multiStepInput(context: ExtensionContext, destination: str
 			shouldResume: shouldResume
 		});
 		state.language = pick.label;
-        return (input: MultiStepInput) => inputPortNumber(input, state);
+        return (input: MultiStepInput) => inputPortNumber(input, state, step + 1);
 	}
 
-    async function inputPortNumber(input: MultiStepInput, state: Partial<State>) {
+    async function inputPortNumber(input: MultiStepInput, state: Partial<State>, step: number) {
 		state.portNumber = await input.showInputBox({
 			title,
-			step: 3,
+			step: step,
 			totalSteps: 5,
 			value: typeof state.portNumber === 'string' ? state.portNumber : '',
 			prompt: 'Port (e.g.8080)',
 			validate: validatePort,
 			shouldResume: shouldResume
 		});
-        return (input: MultiStepInput) => inputApplicationName(input, state);
+        return (input: MultiStepInput) => inputApplicationName(input, state, step + 1);
 	}
 
-	async function inputApplicationName(input: MultiStepInput, state: Partial<State>) {
+	async function inputApplicationName(input: MultiStepInput, state: Partial<State>, step: number) {
 		state.name = await input.showInputBox({
 			title,
-			step: 4,
+			step: step,
 			totalSteps: 5,
 			value: typeof state.name === 'string' ? state.name : '',
 			prompt: 'Application Name',
 			validate: validatePort,
 			shouldResume: shouldResume
 		});
-		return (input: MultiStepInput) => pickDeploymentType(input, state);
+		return (input: MultiStepInput) => pickDeploymentType(input, state, step + 1);
 	}
 
-    async function pickDeploymentType(input: MultiStepInput, state: Partial<State>) {
+    async function pickDeploymentType(input: MultiStepInput, state: Partial<State>, step: number) {
 		const pick = await input.showQuickPick({
 			title,
-			step: 5,
+			step: step,
 			totalSteps: 5,
 			placeholder: 'Pick a deployment type',
 			items: deploymentTypes,
@@ -109,13 +123,14 @@ export async function multiStepInput(context: ExtensionContext, destination: str
 
 	async function validatePort(port: string) {
         // wait before validating so users don't see error messages while typing 
-		await new Promise(resolve => setTimeout(resolve, 500));
+		await new Promise(resolve => setTimeout(resolve, 250));
 
         const portNum = parseInt(port);
         const portMin = 1;
         const portMax = 65535;
         const portErr = `Port must be in range ${portMin} to ${portMax}`;
 
+        if (Number.isNaN(portNum)) return portErr;
         if (portNum < portMin) return portErr;
         if (portNum > portMax) return portErr
 
