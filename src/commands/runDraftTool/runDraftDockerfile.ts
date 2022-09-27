@@ -77,8 +77,9 @@ export async function multiStepInput(context: ExtensionContext, destination: str
 			totalSteps: totalSteps,
 			value: typeof state.outputFile=== 'string' ? state.outputFile: '',
 			prompt: 'Output file destination (e.g. ./Dockerfile)',
-            validate: async () => {
-                const pathErr = "Destination must be a file path";
+            validate: async (path: string) => {
+                const pathErr = "Destination must be a valid file path";
+                if (path === "") return pathErr;
 
                 return undefined;
             },
@@ -139,6 +140,7 @@ export async function multiStepInput(context: ExtensionContext, destination: str
             const guess = await guessLanguage();
             console.log(guess);
             if (guess === undefined) {
+                window.showErrorMessage("Language can't be auto-detected");
                 // @ts-ignore recursive function
                 return (input: MultiStepInput) => selectLanguage(input, state, step);
             }
