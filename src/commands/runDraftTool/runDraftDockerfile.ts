@@ -8,6 +8,7 @@ import { runDraftCommand } from './helper/runDraftHelper';
 import { reporter } from './../../utils/reporter';
 import { MultiStepInput } from './model/stepInput';
 import * as fs from 'fs';
+import linguist = require('linguist-js');
 
 
 export default async function runDraftCreateCmdPalette(
@@ -25,11 +26,8 @@ export default async function runDraftCreateCmdPalette(
 
 export async function multiStepInput(context: ExtensionContext, destination: string) {
     const title = 'Draft a Dockerfile from source code';
-
-	const languages: QuickPickItem[] = ['clojure', 'c#', 'erlang', 'go', 'gomodule', "java", "gradle", "javascript", "php", "python", "rust", "swift"]
-		.map(label => ({ label }));
-    const deploymentTypes: QuickPickItem[] = ['helm', 'kustomize', 'manifests']
-		.map(label => ({ label }));
+    const languages = ['clojure', 'c#', 'erlang', 'go', 'gomodule', "java", "gradle", "javascript", "php", "python", "rust", "swift"];
+	const languageLabels: QuickPickItem[] = languages.map(label => ({ label }));
 
 	interface State {
 		title: string;
@@ -62,12 +60,8 @@ export async function multiStepInput(context: ExtensionContext, destination: str
                 await new Promise(resolve => setTimeout(resolve, 250));
                 const errMsg = "Input must be an existing directory";
 
-                if (!fs.existsSync(file))
-                    return errMsg;
-
-
-                if (!fs.lstatSync(file).isDirectory())
-                    return errMsg;
+                if (!fs.existsSync(file)) return errMsg;
+                if (!fs.lstatSync(file).isDirectory()) return errMsg;
 
                 return undefined;
             },
@@ -93,17 +87,66 @@ export async function multiStepInput(context: ExtensionContext, destination: str
         return (input: MultiStepInput) => selectLanguage(input, state, step + 1);
 	}
 
+    // @ts-ignore recursive function
 	async function selectLanguage(input: MultiStepInput, state: Partial<State>, step: number) {
+        const guessLanguage = async () => {
+            const results = (await linguist(state.sourceFolder, { keepVendored: false, quick: true })).languages.results;
+            const topLanguage = Object.keys(results).reduce((prev, key) => {
+                if (prev === "") return key
+
+                const prevVal = results[prev].bytes;
+                const currVal = results[key].bytes;
+                return prevVal > currVal ? prev : key;
+            }, "");
+
+            // convert to expected language form
+            const languages = ['clojure', 'c#', 'erlang', 'go', 'gomodule', "java", "gradle", "javascript", "php", "python", "rust", "swift"];
+            // https://github.com/github/linguist/blob/master/lib/linguist/languages.yml for keys
+            const convert: {[key: string]: string} = {
+                "Clojure": "clojure",
+                "C#": "c#",
+                "Erlang": "erlang",
+                "Go": "go",
+                "Java": "java",
+                "Gradle": "gradle",
+                "TypeScript": "javascript",
+                "JavaScript": "javascript",
+                "PHP": "php",
+                "Python": "python",
+                "Rust": "rust",
+                "Swift": "swift"
+            };
+
+
+            const converted = topLanguage in convert ? convert[topLanguage] : "";
+            return languages.includes(converted) ? converted : undefined;
+        };
+
+        const autoDetectLabel = "Auto-detect";
+        const items = [{label: autoDetectLabel}, ...languageLabels];
+
 		const pick = await input.showQuickPick({
 			title,
 			step: step,
 			totalSteps: totalSteps,
 			placeholder: 'Select the programming language',
-			items: languages,
+			items: items,
 			activeItem: typeof state.language !== 'string' ? state.language : undefined,
 			shouldResume: shouldResume
 		});
-		state.language = pick.label;
+
+        if (pick.label === autoDetectLabel) {
+            const guess = await guessLanguage();
+            console.log(guess);
+            if (guess === undefined) {
+                // @ts-ignore recursive function
+                return (input: MultiStepInput) => selectLanguage(input, state, step);
+            }
+            state.language = guess;
+        } else {
+		    state.language = pick.label;
+        }
+
         return (input: MultiStepInput) => inputPortNumber(input, state, step + 1);
 	}
 
