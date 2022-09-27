@@ -8,7 +8,7 @@ import { reporter } from './../../utils/reporter';
 import { MultiStepInput, validationSleep, shouldResume } from './model/stepInput';
 import * as fs from 'fs';
 import linguist = require('linguist-js');
-
+import * as path from 'path';
 
 export default async function runDraftCreateCmdPalette(
     _context: vscode.ExtensionContext,
@@ -189,13 +189,18 @@ export async function multiStepInput(context: ExtensionContext, destination: str
     const configPath = buildCreateConfig(language, port, "", "", dotnetVersion);
     const command = buildCreateCommand(source, "dockerfile", configPath);
 
-    const result = await runDraftCommand(command);
+    const [success, err] = await runDraftCommand(command);
+    const isSuccess = err?.length === 0 && success?.length !== 0;
     if (reporter) {
-      const resultSuccessOrFailure = result[1]?.length === 0 && result[0]?.length !== 0;
-      reporter.sendTelemetryEvent("dockerfileDraftResult", { dockerfileDraftResult: `${resultSuccessOrFailure}` });
+      reporter.sendTelemetryEvent("dockerfileDraftResult", { dockerfileDraftResult: `${isSuccess}` });
     }
 
-	window.showInformationMessage(`Draft Message - '${result}'`);
+    const outputPath = path.join(source, "Dockerfile");
+    if (isSuccess) {
+	    window.showInformationMessage(`Draft Dockerfile Succeeded - Output to '${outputPath}'`);
+    } else {
+        window.showErrorMessage(`Draft Dockerfile Failed - ${err}`);
+    }
 }
 
 
