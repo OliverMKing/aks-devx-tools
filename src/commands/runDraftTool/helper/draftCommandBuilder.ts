@@ -8,7 +8,6 @@ export function buildCreateCommand(
     destination: string,
     fileType: string,
     configPath: string,
-    sourcePath?: string
 ): string {
     let args: string[] = [];
     args.push(`create --skip-file-detection`);
