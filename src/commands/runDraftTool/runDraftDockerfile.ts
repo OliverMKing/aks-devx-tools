@@ -29,6 +29,9 @@ export async function multiStepInput(context: ExtensionContext, destination: str
     const languages = ['clojure', 'c#', 'erlang', 'go', 'gomodule', "java", "gradle", "javascript", "php", "python", "rust", "swift"];
 	const languageLabels: QuickPickItem[] = languages.map(label => ({ label }));
 
+    // wait before validating so users don't see error messages while typing 
+    const validationSleep = async () => { await new Promise(resolve => setTimeout(resolve, 250)); };
+
 	interface State {
 		title: string;
 		step: number;
@@ -57,7 +60,7 @@ export async function multiStepInput(context: ExtensionContext, destination: str
 			value: typeof state.sourceFolder === 'string' ? state.sourceFolder : '',
 			prompt: 'Folder with your source code e.g. ./src)',
             validate: async (file: string) => {
-                await new Promise(resolve => setTimeout(resolve, 250));
+                await validationSleep();
                 const errMsg = "Input must be an existing directory";
 
                 if (!fs.existsSync(file)) return errMsg;
@@ -78,6 +81,7 @@ export async function multiStepInput(context: ExtensionContext, destination: str
 			value: typeof state.outputFile=== 'string' ? state.outputFile: '',
 			prompt: 'Output file destination (e.g. ./Dockerfile)',
             validate: async (path: string) => {
+                await validationSleep();
                 const pathErr = "Destination must be a valid file path";
                 if (path === "") return pathErr;
 
@@ -172,8 +176,7 @@ export async function multiStepInput(context: ExtensionContext, destination: str
 	}
 
 	async function validatePort(port: string) {
-        // wait before validating so users don't see error messages while typing 
-		await new Promise(resolve => setTimeout(resolve, 250));
+        await validationSleep();
 
         const portNum = parseInt(port);
         const portMin = 1;
