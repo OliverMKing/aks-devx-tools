@@ -59,7 +59,7 @@ export function buildCreateConfig(
         });
     }
 
-    if (dotnetVersion.length > 0) {
+    if (dotnetVersion?.length > 0) {
         data.languageVariables.push({
             name: "VERSION",
             value: dotnetVersion
