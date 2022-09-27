@@ -1,12 +1,11 @@
 import * as vscode from 'vscode';
-import { getExtensionPath, longRunning } from './../../utils/host';
-import { failed } from './../../utils/errorable';
+import { longRunning } from './../../utils/host';
 import { downloadDraftBinary } from './helper/runDraftHelper';
-import { QuickPickItem, window, CancellationToken, ExtensionContext } from 'vscode';
+import { QuickPickItem, window, ExtensionContext } from 'vscode';
 import { buildCreateCommand, buildCreateConfig } from './helper/draftCommandBuilder';
 import { runDraftCommand } from './helper/runDraftHelper';
 import { reporter } from './../../utils/reporter';
-import { MultiStepInput } from './model/stepInput';
+import { MultiStepInput, validationSleep, shouldResume } from './model/stepInput';
 import * as fs from 'fs';
 import linguist = require('linguist-js');
 
@@ -29,24 +28,20 @@ export async function multiStepInput(context: ExtensionContext, destination: str
     const languages = ['clojure', 'c#', 'erlang', 'go', 'gomodule', "java", "gradle", "javascript", "php", "python", "rust", "swift"];
 	const languageLabels: QuickPickItem[] = languages.map(label => ({ label }));
 
-    // wait before validating so users don't see error messages while typing 
-    const validationSleep = async () => { await new Promise(resolve => setTimeout(resolve, 250)); };
-
 	interface State {
 		title: string;
 		step: number;
 		totalSteps: number;
-        fileType: QuickPickItem | string;
         language: string;
         portNumber: string;
-        deploymentType: string;
         outputFile: string;
         sourceFolder: string;
+        version: string;
 		runtime: QuickPickItem;
 	}
 
 	async function collectInputs() {
-		const state = {} as Partial<State>;
+		const state = {sourceFolder: destination} as Partial<State>;
 		await MultiStepInput.run(input => inputSourceCodeFolder(input, state, 1));
 		return state as State;
 	}
@@ -153,8 +148,24 @@ export async function multiStepInput(context: ExtensionContext, destination: str
 		    state.language = pick.label;
         }
 
-        return (input: MultiStepInput) => inputPortNumber(input, state, step + 1);
+        return (input: MultiStepInput) => inputVersion(input, state, step + 1);
 	}
+
+    async function inputVersion(input: MultiStepInput, state: Partial<State>, step: number) {
+        if (state.language === "c#") {
+            state.version= await input.showInputBox({
+                title,
+                step: step,
+                totalSteps: totalSteps,
+                value: typeof state.version === 'string' ? state.version: '',
+                prompt: `Version of ${state.language}`,
+                validate: async () => undefined,
+                shouldResume: shouldResume
+            });
+        }
+
+        return (input: MultiStepInput) => inputPortNumber(input, state, step + 1);
+    }
 
     async function inputPortNumber(input: MultiStepInput, state: Partial<State>, step: number) {
 		state.portNumber = await input.showInputBox({
@@ -168,46 +179,37 @@ export async function multiStepInput(context: ExtensionContext, destination: str
 		});
 	}
 
-
-	function shouldResume() {
-		return new Promise<boolean>((resolve, reject) => {
-			// noop
-		});
-	}
-
-	async function validatePort(port: string) {
-        await validationSleep();
-
-        const portNum = parseInt(port);
-        const portMin = 1;
-        const portMax = 65535;
-        const portErr = `Port must be in range ${portMin} to ${portMax}`;
-
-        if (Number.isNaN(portNum)) return portErr;
-        if (portNum < portMin) return portErr;
-        if (portNum > portMax) return portErr
-
-        return undefined;
-	}
-
 	const state = await collectInputs();
-
+    const source = state.sourceFolder;
+    const output = state.outputFile; // TODO: make output actually do something or remove
     const language = state.language;
-    const fileType = state.fileType;
+    const dotnetVersion = state.version;
     const port = state.portNumber;
-    const appName = "";
-    const workflow = state.deploymentType;
-    const dotnetVersion = "";
 
-    const configPath = buildCreateConfig(language, port, appName, workflow, dotnetVersion);
-    const command = buildCreateCommand(destination, fileType.toString(), configPath);
+    const configPath = buildCreateConfig(language, port, "", "", dotnetVersion);
+    const command = buildCreateCommand(source, "dockerfile", configPath);
 
     const result = await runDraftCommand(command);
     if (reporter) {
       const resultSuccessOrFailure = result[1]?.length === 0 && result[0]?.length !== 0;
-      reporter.sendTelemetryEvent("createDraftResult", { createDraftResult: `${resultSuccessOrFailure}` });
+      reporter.sendTelemetryEvent("dockerfileDraftResult", { dockerfileDraftResult: `${resultSuccessOrFailure}` });
     }
 
 	window.showInformationMessage(`Draft Message - '${result}'`);
 }
 
+
+async function validatePort(port: string) {
+    await validationSleep();
+
+    const portNum = parseInt(port);
+    const portMin = 1;
+    const portMax = 65535;
+    const portErr = `Port must be in range ${portMin} to ${portMax}`;
+
+    if (Number.isNaN(portNum)) return portErr;
+    if (portNum < portMin) return portErr;
+    if (portNum > portMax) return portErr
+
+    return undefined;
+}
