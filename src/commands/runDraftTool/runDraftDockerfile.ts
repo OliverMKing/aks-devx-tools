@@ -9,6 +9,7 @@ import { MultiStepInput, validationSleep, shouldResume } from './model/multiStep
 import * as fs from 'fs';
 import * as path from 'path';
 import linguist = require('linguist-js');
+import { validatePort } from '../../utils/validation';
 
 export default async function runDraftDockerfile(
     _context: vscode.ExtensionContext,
@@ -33,7 +34,6 @@ async function multiStepInput(context: ExtensionContext, destination: string) {
 		totalSteps: number;
         language: string;
         portNumber: string;
-        outputFile: string;
         sourceFolder: string;
         version: string;
 		runtime: QuickPickItem;
@@ -45,7 +45,7 @@ async function multiStepInput(context: ExtensionContext, destination: string) {
 		return state as State;
 	}
 
-    const totalSteps = 5;
+    const totalSteps = 4;
     async function inputSourceCodeFolder(input: MultiStepInput, state: Partial<State>, step: number) {
 		state.sourceFolder = await input.showInputBox({
 			title,
@@ -59,25 +59,6 @@ async function multiStepInput(context: ExtensionContext, destination: string) {
 
                 if (!fs.existsSync(file)) return errMsg;
                 if (!fs.lstatSync(file).isDirectory()) return errMsg;
-
-                return undefined;
-            },
-			shouldResume: shouldResume
-		});
-        return (input: MultiStepInput) => inputOutputFile(input, state, step + 1);
-	}
-
-    async function inputOutputFile(input: MultiStepInput, state: Partial<State>, step: number) {
-		state.outputFile = await input.showInputBox({
-			title,
-			step: step,
-			totalSteps: totalSteps,
-			value: typeof state.outputFile=== 'string' ? state.outputFile: '',
-			prompt: 'Output file destination (e.g. ./Dockerfile)',
-            validate: async (path: string) => {
-                await validationSleep();
-                const pathErr = "Destination must be a valid file path";
-                if (path === "") return pathErr;
 
                 return undefined;
             },
@@ -178,7 +159,6 @@ async function multiStepInput(context: ExtensionContext, destination: string) {
 
 	const state = await collectInputs();
     const source = state.sourceFolder;
-    const output = state.outputFile; // TODO: make output actually do something or remove
     const language = state.language;
     const dotnetVersion = state.version;
     const port = state.portNumber;
@@ -198,19 +178,4 @@ async function multiStepInput(context: ExtensionContext, destination: string) {
     } else {
         window.showErrorMessage(`Draft Dockerfile Failed - ${err}`);
     }
-}
-
-async function validatePort(port: string) {
-    await validationSleep();
-
-    const portNum = parseInt(port);
-    const portMin = 1;
-    const portMax = 65535;
-    const portErr = `Port must be in range ${portMin} to ${portMax}`;
-
-    if (Number.isNaN(portNum)) return portErr;
-    if (portNum < portMin) return portErr;
-    if (portNum > portMax) return portErr
-
-    return undefined;
 }
