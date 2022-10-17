@@ -59,7 +59,7 @@ export function activate(context: vscode.ExtensionContext) {
           command: "aks-draft-extension.runBuildContainer",
         });
       }
-      runBuildContainer(context, az);
+      runBuildContainer(context);
     }
   );
 

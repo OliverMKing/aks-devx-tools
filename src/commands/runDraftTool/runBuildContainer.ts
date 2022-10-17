@@ -1,103 +1,53 @@
-import { Registry } from "@azure/arm-containerregistry";
 import * as vscode from "vscode";
-import { AzApi } from "../../utils/az";
 import { Context, ContextApi } from "../../utils/context";
-import { Errorable, succeeded } from "../../utils/errorable";
-import { longRunning } from "../../utils/host";
+import * as semver from "semver";
+import { KnownRunStatus, Run } from "@azure/arm-containerregistry";
 
 export default async function runBuildContainer(
-  _context: vscode.ExtensionContext,
-  az: AzApi
+  _context: vscode.ExtensionContext
 ): Promise<void> {
   const ctx: ContextApi = new Context(_context);
-  const subsResp = az.getSubscriptions();
 
-  // TODO: refactor this but it will be hard to do that without editing the docker extension itself
-  // need error handling + this is super flimsy
-  vscode.commands
-    .executeCommand("vscode-docker.registries.azure.buildImage")
-    .then(async () => {
-      const acrsResp: Promise<Errorable<Registry[]>>[] = [];
-      const awaitedSubs = await subsResp;
-      if (succeeded(awaitedSubs)) {
-        const subs = awaitedSubs.result;
-        subs.forEach((sub) =>
-          acrsResp.push(az.getAcrsFromSub(sub.subscriptionId as string))
-        );
-      }
+  // ensure docker extension version is handled
+  const version =
+    semver.coerce(
+      vscode.extensions.getExtension("ms-azuretools.vscode-docker")?.packageJSON
+        .version
+    ) || "";
+  const required = "^1.23.0";
+  if (!semver.satisfies(version, required)) {
+    vscode.window.showErrorMessage(
+      `Docker extension version ${required} needed`
+    );
+    return;
+  }
 
-      await longRunning(
-        "Building container",
-        () =>
-          new Promise<void>((resolve, reject) => {
-            const disposables: vscode.Disposable[] = [];
-            const stop = () => {
-              disposables.forEach((d) => d.dispose());
-              resolve();
-            };
-            vscode.workspace.onDidChangeTextDocument(
-              async (e) => {
-                if (
-                  !e.document.fileName.startsWith(
-                    "extension-output-ms-azuretools.vscode-docker"
-                  )
-                )
-                  return;
+  const { status, id, outputImages }: Run =
+    await vscode.commands.executeCommand(
+      "vscode-docker.registries.azure.buildImage"
+    );
+  if (
+    status !== KnownRunStatus.Succeeded ||
+    typeof outputImages === "undefined"
+  ) {
+    return;
+  }
 
-                for (const { text } of e.contentChanges) {
-                  const registry = text.match(/\s*registry: (?<registry>\S*)/)
-                    ?.groups?.registry;
-                  const repo = text.match(/\s*repository: (?<repo>\S*)/)?.groups
-                    ?.repo;
-                  const tag = text.match(/\s*tag: (?<tag>\S*)/)?.groups?.tag;
+  // TODO: parse out subscription, resource group from id
+  // id in form of /subscriptions/<subscription>/resourceGroups/<rg>/providers/Microsoft.ContainerRegistry/registries/<registry>/runs/cdh
+  const subscription = "todo";
+  const resourceGroup = "todo";
+  const image = outputImages[0];
+  const { registry, repository, tag } = image;
 
-                  if (registry && repo && tag) {
-                    const image = `${registry}/${repo}:${tag}`;
-                    ctx.setImage(image);
-                    ctx.setAcrRepository(repo);
-                    ctx.setAcrTag(tag);
+  ctx.setAcrName(registry as string);
+  ctx.setAcrRepository(repository as string);
+  ctx.setAcrTag(tag as string);
+  ctx.setSubscription(subscription);
+  ctx.setAcrResourceGroup(resourceGroup);
 
-                    const acrs: Registry[] = [];
-                    const acrsResult = await Promise.all(acrsResp);
-                    acrsResult.forEach((res) => {
-                      if (succeeded(res)) {
-                        acrs.push(...res.result);
-                      }
-                    });
-                    const acr = acrs.find(
-                      (acr) => acr.loginServer === registry
-                    );
-                    ctx.setAcrName(acr?.name as string);
-                    const { subscription, resourceGroup } = az.parseId(
-                      acr?.id || ""
-                    );
-                    ctx.setSubscription(subscription as string);
-                    ctx.setAcrResourceGroup(resourceGroup as string);
-
-                    const draftKubernetesDeployment =
-                      "Draft Kubernetes Deployment and Service";
-                    vscode.window
-                      .showInformationMessage(
-                        `Built container ${image}`,
-                        draftKubernetesDeployment
-                      )
-                      .then((option) => {
-                        if (option === draftKubernetesDeployment) {
-                          vscode.commands.executeCommand(
-                            "aks-draft-extension.runDraftDeployment"
-                          );
-                        }
-                      });
-                    stop();
-                  }
-                }
-              },
-              undefined,
-              disposables
-            );
-            // clean up disposables after 15 minutes
-            setInterval(() => stop(), 900_000);
-          })
-      );
-    });
+  vscode.window.showInformationMessage(
+    "Build image succeeded",
+    "Draft Kubernetes Deployment and Service"
+  );
 }
