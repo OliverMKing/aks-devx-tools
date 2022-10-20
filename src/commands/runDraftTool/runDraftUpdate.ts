@@ -38,7 +38,7 @@ export default async function runDraftUpdate(
 
 async function multiStepInput(context: ExtensionContext, destination: string, az: AzApi) {
 	const title = 'Draft a Kubernetes Ingress';
-	const ctx = new Context(context);
+	const ctx = Context.construct(context);
 
 	interface State {
 		title: string;

@@ -1,118 +1,37 @@
 import * as vscode from "vscode";
 
-export interface ContextApi {
-  getPort(): string | undefined;
-  setPort(port: string): void;
-  getImage(): string | undefined;
-  setImage(image: string): void;
-  getSubscription(): string | undefined;
-  setSubscription(subscription: string): void;
-  getAcrResourceGroup(): string | undefined;
-  setAcrResourceGroup(rg: string): void;
-  getAcrName(): string | undefined;
-  setAcrName(name: string): void;
-  getAcrRepository(): string | undefined;
-  setAcrRepository(repo: string): void;
-  getAcrTag(): string | undefined;
-  setAcrTag(tag: string): void;
-  setDockerfile(dockerfile: string): void;
-  getDockerfile(): string | undefined;
-  setDeploymentType(type: string): void;
-  getDeploymentType(): string | undefined;
-  setManifestsPath(path: string): void;
-  getManifestsPath(): string | undefined;
-  setChartPath(path: string): void;
-  getChartPath(): string | undefined;
-}
+const keys = [
+  "port",
+  "image",
+  "subscription",
+  "acrResourceGroup",
+  "acrName",
+  "acrRepo",
+  "acrTag",
+  "dockerfile",
+  "deploymentType",
+  "manifestPath",
+  "chartPath",
+] as const;
 
-const portKey = "port";
-const imageKey = "image";
-const subKey = "subscription";
-const acrRgKey = "acrResourceGroup";
-const acrNameKey = "acrName";
-const acrRepoKey = "acrRepo";
-const acrTagKey = "acrTag";
-const dockerfileKey = "dockerfile";
-const deploymentTypeKey = "deploymentType";
-const manifestPathKey = "manifestPath";
-const chartPathKey = "chartPath";
+type GetMethodName = `get${Capitalize<typeof keys[number]>}`;
+type SetMethodName = `set${Capitalize<typeof keys[number]>}`;
+type GetMethods = { [m in GetMethodName]: () => string | undefined };
+type SetMethods = { [m in SetMethodName]: (val: string) => void };
+export type ContextApi = GetMethods & SetMethods;
 
-export class Context implements ContextApi {
-  constructor(private ctx: vscode.ExtensionContext) {}
-
-  setManifestsPath(path: string): void {
-    this.set(manifestPathKey, path);
-  }
-  getManifestsPath(): string | undefined {
-    return this.get(manifestPathKey);
-  }
-  setChartPath(path: string): void {
-    this.set(chartPathKey, path);
-  }
-  getChartPath(): string | undefined {
-    return this.get(chartPathKey);
+export class Context {
+  private constructor(private ctx: vscode.ExtensionContext) {
+    assertIs<ContextApi>(this);
+    for (const key of keys) {
+      const cap = capitalize(key);
+      this[`get${cap}` as GetMethodName] = () => this.get(key);
+      this[`set${cap}` as SetMethodName] = (val: string) => this.set(key, val);
+    }
   }
 
-  setDockerfile(dockerfile: string): void {
-    this.set(dockerfileKey, dockerfile);
-  }
-  getDockerfile(): string | undefined {
-    return this.get(dockerfileKey);
-  }
-  setDeploymentType(type: string): void {
-    this.set(deploymentTypeKey, type);
-  }
-  getDeploymentType(): string | undefined {
-    return this.get(deploymentTypeKey);
-  }
-
-  getAcrTag(): string | undefined {
-    return this.get(acrTagKey);
-  }
-
-  setAcrTag(tag: string): void {
-    this.set(acrTagKey, tag);
-  }
-
-  getSubscription(): string | undefined {
-    return this.get(subKey);
-  }
-  setSubscription(subscription: string): void {
-    this.set(subKey, subscription);
-  }
-  getAcrResourceGroup(): string | undefined {
-    return this.get(acrRgKey);
-  }
-  setAcrResourceGroup(rg: string): void {
-    this.set(acrRgKey, rg);
-  }
-  getAcrName(): string | undefined {
-    return this.get(acrNameKey);
-  }
-  setAcrName(name: string): void {
-    this.set(acrNameKey, name);
-  }
-  getAcrRepository(): string | undefined {
-    return this.get(acrRepoKey);
-  }
-  setAcrRepository(repo: string): void {
-    this.set(acrRepoKey, repo);
-  }
-
-  getPort(): string | undefined {
-    return this.get(portKey);
-  }
-
-  setPort(port: string) {
-    return this.set(portKey, port);
-  }
-
-  getImage(): string | undefined {
-    return this.get(imageKey);
-  }
-
-  setImage(image: string) {
-    return this.set(imageKey, image);
+  static construct(ctx: vscode.ExtensionContext): Context & ContextApi {
+    return new Context(ctx) as Context & ContextApi;
   }
 
   private get(key: string): string | undefined {
@@ -123,3 +42,6 @@ export class Context implements ContextApi {
     return this.ctx.workspaceState.update(key, val);
   }
 }
+
+declare function assertIs<T>(value: unknown): asserts value is T;
+const capitalize = (s: string) => s[0].toUpperCase() + s.substring(1);
